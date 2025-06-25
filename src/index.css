@@ -62,6 +62,7 @@ html, body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 .dark {
@@ -569,8 +570,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* App specific styles */
 .app {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--gray-50), var(--gray-100));
+  padding: 2rem 0;
+  background: linear-gradient(135deg, var(--gray-50), white);
   transition: background 0.3s;
+  overflow-x: hidden;
 }
 
 .dark .app {
@@ -602,7 +605,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
   max-height: 30vh;
   overflow-y: auto;
   padding-right: 0.5rem;
-  margin-right: -0.5rem;
   scrollbar-width: thin;
   scrollbar-color: var(--primary) transparent;
 }
@@ -797,17 +799,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 /* App layout improvements */
-.app {
-  min-height: 100vh;
-  padding: 2rem 0;
-  background: linear-gradient(135deg, var(--gray-50), white);
-  transition: background 0.3s;
-}
-
-.dark .app {
-  background: linear-gradient(135deg, var(--gray-900), var(--gray-800));
-}
-
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -815,19 +806,20 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
+  gap: 0.5rem;
   margin-bottom: 2rem;
+  padding: 0 1rem;
+  box-sizing: border-box;
 }
 
 .header h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  background: linear-gradient(to right, var(--primary), var(--secondary));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .grid {
@@ -998,4 +990,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .dark .text-orange-400 {
   color: #fb923c;
+}
+
+@media (max-width: 500px) {
+  .header h1 {
+    font-size: 1.25rem;
+  }
 }
