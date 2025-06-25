@@ -25,6 +25,7 @@ type TimerState = {
     volume: number;
   };
   lastActiveTimestamp: number;
+  endTimestamp: number | null;
   isAlarmActive: boolean;
 };
 
@@ -66,15 +67,35 @@ const initialState: TimerState = {
     volume: 0.5,
   },
   lastActiveTimestamp: Date.now(),
+  endTimestamp: null,
   isAlarmActive: false,
 };
 
 function timerReducer(state: TimerState, action: TimerAction): TimerState {
   switch (action.type) {
-    case 'START_TIMER':
-      return { ...state, isRunning: true, lastActiveTimestamp: Date.now() };
-    case 'PAUSE_TIMER':
-      return { ...state, isRunning: false };
+    case 'START_TIMER': {
+      const now = Date.now();
+      const endTimestamp = state.endTimestamp ?? (now + state.timeRemaining * 1000);
+
+      return {
+        ...state,
+        isRunning: true,
+        lastActiveTimestamp: now,
+        endTimestamp,
+      };
+    }
+    case 'PAUSE_TIMER': {
+      if (!state.isRunning) return state;
+      const now = Date.now();
+      const timeRemaining = Math.max(0, Math.round(((state.endTimestamp ?? now) - now) / 1000));
+
+      return {
+        ...state,
+        isRunning: false,
+        timeRemaining,
+        endTimestamp: null,
+      };
+    }
     case 'RESET_TIMER':
       return {
         ...state,
@@ -83,6 +104,7 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
           ? state.selectedMode.workDuration
           : state.selectedMode.breakDuration,
         lastActiveTimestamp: Date.now(),
+        endTimestamp: null,
       };
     case 'SET_MODE':
       return {
@@ -93,11 +115,15 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
           : action.payload.breakDuration,
         isRunning: false,
         lastActiveTimestamp: Date.now(),
+        endTimestamp: null,
       };
     case 'TICK': {
+      if (!state.isRunning || state.endTimestamp == null) {
+        return state;
+      }
+
       const now = Date.now();
-      const timePassed = Math.floor((now - state.lastActiveTimestamp) / 1000);
-      const newTimeRemaining = Math.max(0, state.timeRemaining - timePassed);
+      const newTimeRemaining = Math.max(0, Math.round((state.endTimestamp - now) / 1000));
 
       return {
         ...state,
@@ -115,6 +141,7 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
           : state.selectedMode.breakDuration,
         isRunning: false,
         lastActiveTimestamp: Date.now(),
+        endTimestamp: null,
         isAlarmActive: true,
       };
     case 'ADD_CUSTOM_MODE': {
@@ -126,6 +153,7 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
         timeRemaining: state.currentPhase === 'work'
           ? action.payload.workDuration
           : action.payload.breakDuration,
+        endTimestamp: null,
       };
     }
     case 'REMOVE_CUSTOM_MODE': {
@@ -151,6 +179,7 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
         selectedMode: newSelectedMode,
         timeRemaining: newTimeRemaining,
         isRunning: false,
+        endTimestamp: null,
       };
     }
     case 'UPDATE_STATISTICS': {
