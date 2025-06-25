@@ -97,7 +97,7 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
     case 'TICK': {
       const now = Date.now();
       const timePassed = Math.floor((now - state.lastActiveTimestamp) / 1000);
-      const newTimeRemaining = Math.max(0, state.timeRemaining - 1);
+      const newTimeRemaining = Math.max(0, state.timeRemaining - timePassed);
 
       return {
         ...state,
