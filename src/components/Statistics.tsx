@@ -19,28 +19,31 @@ export function Statistics() {
       name: 'Sessions Completed',
       value: state.statistics.completedSessions,
       icon: ChartBarIcon,
+      color: 'text-blue-600 dark:text-blue-400',
       gradient: 'from-blue-500 to-indigo-600',
-      darkGradient: 'dark:from-blue-600 dark:to-indigo-700',
+      darkGradient: 'dark:from-blue-400 dark:to-indigo-500',
     },
     {
       name: 'Total Work Time',
       value: formatTime(state.statistics.totalWorkTime),
       icon: ClockIcon,
+      color: 'text-emerald-600 dark:text-emerald-400',
       gradient: 'from-emerald-500 to-teal-600',
-      darkGradient: 'dark:from-emerald-600 dark:to-teal-700',
+      darkGradient: 'dark:from-emerald-400 dark:to-teal-500',
     },
     {
       name: 'Current Streak',
       value: `${state.statistics.streakDays} days`,
       icon: FireIcon,
+      color: 'text-orange-600 dark:text-orange-400',
       gradient: 'from-orange-500 to-red-600',
-      darkGradient: 'dark:from-orange-600 dark:to-red-700',
+      darkGradient: 'dark:from-orange-400 dark:to-red-500',
     },
   ];
 
   return (
     <motion.div
-      className="card"
+      className="card statistics-card"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
@@ -56,18 +59,18 @@ export function Statistics() {
         {stats.map((stat, index) => (
           <motion.div
             key={stat.name}
-            className="relative overflow-hidden rounded-xl bg-gradient-to-br from-white/5 to-white/10 dark:from-gray-800/5 dark:to-gray-800/10 p-6 shadow-lg backdrop-blur-sm"
+            className="stat-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
             whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
           >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r opacity-75 ${stat.gradient} ${stat.darkGradient}" />
+            <div className={`stat-highlight ${stat.gradient} ${stat.darkGradient}`} />
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.name}</p>
+                <p className="stat-label">{stat.name}</p>
                 <motion.p
-                  className={`mt-2 text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${stat.gradient} ${stat.darkGradient}`}
+                  className={`stat-value ${stat.color}`}
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: index * 0.2 + 0.2, type: "spring" }}
@@ -75,9 +78,9 @@ export function Statistics() {
                   {stat.value}
                 </motion.p>
               </div>
-              <stat.icon className={`w-8 h-8 bg-clip-text text-transparent bg-gradient-to-br ${stat.gradient} ${stat.darkGradient}`} />
+              <stat.icon className={`stat-icon ${stat.color}`} />
             </div>
-            <div className="absolute bottom-0 right-0 opacity-5">
+            <div className="stat-background">
               <stat.icon className="w-24 h-24 transform translate-x-8 translate-y-8" />
             </div>
           </motion.div>

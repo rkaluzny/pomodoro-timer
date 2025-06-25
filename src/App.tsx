@@ -15,11 +15,11 @@ function App() {
           </header>
 
           <div className="grid">
-            <div className="flex-col gap-4">
+            <div className="timer-stats-container">
               <Timer />
               <Statistics />
             </div>
-            <div>
+            <div className="settings-container">
               <Settings />
             </div>
           </div>

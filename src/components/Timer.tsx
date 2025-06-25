@@ -1,22 +1,135 @@
 import { useEffect, useRef } from 'react';
 import { useTimer } from '../contexts/TimerContext';
-import { PlayIcon, PauseIcon, ArrowPathIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/solid';
+import { PlayIcon, PauseIcon, ArrowPathIcon, SpeakerWaveIcon, SpeakerXMarkIcon, BellSlashIcon } from '@heroicons/react/24/solid';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function Timer() {
   const { state, dispatch } = useTimer();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioLoopTimeoutRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<any>(null);
 
+  // Initialize audio on component mount
   useEffect(() => {
-    if (state.timeRemaining === 0) {
-      if (state.sound.enabled && audioRef.current) {
-        audioRef.current.volume = state.sound.volume;
-        audioRef.current.play();
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.src = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+      audioRef.current.load();
+    }
+
+    return () => {
+      if (audioLoopTimeoutRef.current) {
+        window.clearTimeout(audioLoopTimeoutRef.current);
       }
+    };
+  }, []);
+
+  // Handle timer completion and play sound
+  useEffect(() => {
+    const playSound = async () => {
+      if (state.sound.enabled && audioRef.current && state.isAlarmActive) {
+        try {
+          audioRef.current.volume = state.sound.volume;
+          // Reset the audio to start
+          audioRef.current.currentTime = 0;
+          // Play the sound
+          await audioRef.current.play();
+          // Schedule next play after the audio ends
+          audioLoopTimeoutRef.current = window.setTimeout(playSound, audioRef.current.duration * 1000);
+        } catch (error) {
+          console.error('Error playing sound:', error);
+        }
+      }
+    };
+
+    if (state.timeRemaining === 0) {
+      // Show notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Timer Complete!', {
+          body: `${state.currentPhase === 'work' ? 'Break' : 'Work'} phase starting.`,
+          icon: '/vite.svg'
+        });
+      }
+
       dispatch({ type: 'UPDATE_STATISTICS' });
       dispatch({ type: 'TOGGLE_PHASE' });
     }
-  }, [state.timeRemaining, state.sound.enabled, state.sound.volume, dispatch]);
+
+    // Start playing sound if alarm is active
+    if (state.isAlarmActive) {
+      playSound();
+    } else {
+      // Stop any ongoing sound when alarm is deactivated
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      if (audioLoopTimeoutRef.current) {
+        window.clearTimeout(audioLoopTimeoutRef.current);
+      }
+    }
+
+    return () => {
+      if (audioLoopTimeoutRef.current) {
+        window.clearTimeout(audioLoopTimeoutRef.current);
+      }
+    };
+  }, [state.timeRemaining, state.sound.enabled, state.sound.volume, state.currentPhase, state.isAlarmActive, dispatch]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Request Screen Wake Lock when timer is running (mobile standby)
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && !wakeLockRef.current) {
+          // @ts-ignore - experimental API
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          wakeLockRef.current.addEventListener('release', () => {
+            wakeLockRef.current = null;
+          });
+        }
+      } catch (err) {
+        console.warn('Wake Lock not available:', err);
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLockRef.current) {
+        try {
+          await wakeLockRef.current.release();
+        } catch (err) {
+          // ignore
+        }
+        wakeLockRef.current = null;
+      }
+    };
+
+    if (state.isRunning) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+
+    // Re-acquire lock on visibility change (Android releases it automatically)
+    const handleVisibility = () => {
+      if (state.isRunning && !wakeLockRef.current) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      releaseWakeLock();
+    };
+  }, [state.isRunning]);
 
   const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -118,7 +231,10 @@ export function Timer() {
         </motion.button>
         <motion.button
           className="btn-icon btn-secondary"
-          onClick={() => dispatch({ type: 'RESET_TIMER' })}
+          onClick={() => {
+            dispatch({ type: 'RESET_TIMER' });
+            dispatch({ type: 'STOP_ALARM' });
+          }}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
           initial={{ opacity: 0, y: 20 }}
@@ -142,6 +258,19 @@ export function Timer() {
             <SpeakerXMarkIcon className="icon" />
           )}
         </motion.button>
+        {state.isAlarmActive && (
+          <motion.button
+            className="btn-icon btn-alarm"
+            onClick={() => dispatch({ type: 'STOP_ALARM' })}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+          >
+            <BellSlashIcon className="icon" />
+          </motion.button>
+        )}
       </div>
 
       <audio ref={audioRef} preload="auto">

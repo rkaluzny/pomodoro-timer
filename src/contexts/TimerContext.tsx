@@ -25,6 +25,7 @@ type TimerState = {
     volume: number;
   };
   lastActiveTimestamp: number;
+  isAlarmActive: boolean;
 };
 
 type TimerAction =
@@ -39,7 +40,8 @@ type TimerAction =
   | { type: 'UPDATE_STATISTICS' }
   | { type: 'TOGGLE_SOUND' }
   | { type: 'SET_VOLUME'; payload: number }
-  | { type: 'LOAD_STATE'; payload: Partial<TimerState> };
+  | { type: 'LOAD_STATE'; payload: Partial<TimerState> }
+  | { type: 'STOP_ALARM' };
 
 const defaultModes: TimerMode[] = [
   { name: 'Classic Pomodoro', workDuration: 25 * 60, breakDuration: 5 * 60 },
@@ -64,6 +66,7 @@ const initialState: TimerState = {
     volume: 0.5,
   },
   lastActiveTimestamp: Date.now(),
+  isAlarmActive: false,
 };
 
 function timerReducer(state: TimerState, action: TimerAction): TimerState {
@@ -94,7 +97,7 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
     case 'TICK': {
       const now = Date.now();
       const timePassed = Math.floor((now - state.lastActiveTimestamp) / 1000);
-      const newTimeRemaining = Math.max(0, state.timeRemaining - timePassed);
+      const newTimeRemaining = Math.max(0, state.timeRemaining - 1);
 
       return {
         ...state,
@@ -112,17 +115,44 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
           : state.selectedMode.breakDuration,
         isRunning: false,
         lastActiveTimestamp: Date.now(),
+        isAlarmActive: true,
       };
-    case 'ADD_CUSTOM_MODE':
+    case 'ADD_CUSTOM_MODE': {
+      const newCustomModes = [...state.customModes, action.payload];
       return {
         ...state,
-        customModes: [...state.customModes, action.payload],
+        customModes: newCustomModes,
+        selectedMode: action.payload,
+        timeRemaining: state.currentPhase === 'work'
+          ? action.payload.workDuration
+          : action.payload.breakDuration,
       };
-    case 'REMOVE_CUSTOM_MODE':
+    }
+    case 'REMOVE_CUSTOM_MODE': {
+      const isSelectedMode = state.selectedMode.name === action.payload;
+      const filteredModes = state.customModes.filter(mode => mode.name !== action.payload);
+      
+      let newSelectedMode = state.selectedMode;
+      let newTimeRemaining = state.timeRemaining;
+      
+      if (isSelectedMode) {
+        newSelectedMode = filteredModes.length > 0 
+          ? filteredModes[0] 
+          : defaultModes[0];
+          
+        newTimeRemaining = state.currentPhase === 'work'
+          ? newSelectedMode.workDuration
+          : newSelectedMode.breakDuration;
+      }
+      
       return {
         ...state,
-        customModes: state.customModes.filter(mode => mode.name !== action.payload),
+        customModes: filteredModes,
+        selectedMode: newSelectedMode,
+        timeRemaining: newTimeRemaining,
+        isRunning: false,
       };
+    }
     case 'UPDATE_STATISTICS': {
       const now = new Date();
       const lastUpdated = new Date(state.statistics.lastUpdated);
@@ -170,6 +200,11 @@ function timerReducer(state: TimerState, action: TimerAction): TimerState {
         ...state,
         ...action.payload,
       };
+    case 'STOP_ALARM':
+      return {
+        ...state,
+        isAlarmActive: false,
+      };
     default:
       return state;
   }
@@ -182,30 +217,43 @@ const TimerContext = createContext<{
 
 const STORAGE_KEY = 'pomodoro_state';
 
-export function TimerProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(timerReducer, initialState);
-
-  // Load state from localStorage on mount
-  useEffect(() => {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (savedState) {
-      try {
-        const parsedState = JSON.parse(savedState);
-        dispatch({ type: 'LOAD_STATE', payload: parsedState });
-      } catch (error) {
-        console.error('Failed to load saved state:', error);
+function getInitialState(): TimerState {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed: Partial<TimerState> = JSON.parse(saved);
+      // Backward-compatibility: ensure required fields exist
+      const base = { ...initialState, ...parsed } as TimerState;
+      // If custom modes exist but no selectedMode set, pick first custom
+      if (base.customModes.length > 0 && !base.selectedMode) {
+        base.selectedMode = base.customModes[0];
       }
+      return base;
     }
-  }, []);
+  } catch (err) {
+    console.error('Error parsing saved timer state', err);
+  }
+  return initialState;
+}
 
-  // Save state to localStorage whenever it changes
+export function TimerProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(timerReducer, initialState, getInitialState);
+
+  // Persist relevant state slices to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    const stateToSave = {
       customModes: state.customModes,
       statistics: state.statistics,
       sound: state.sound,
-    }));
-  }, [state.customModes, state.statistics, state.sound]);
+      selectedMode: state.selectedMode,
+    } as Partial<TimerState>;
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    } catch (err) {
+      console.error('Failed to save timer state', err);
+    }
+  }, [state.customModes, state.statistics, state.sound, state.selectedMode]);
 
   // Handle background timer updates
   useEffect(() => {
